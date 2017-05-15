@@ -358,12 +358,17 @@ void *resolve_adler32(void)
   if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx))
     return adler32_default;
   has_sse42 = ((ecx & bit_SSE4_2) != 0);
-#if defined(bit_AVX2)
+
+#if !defined(bit_AVX2)
+#define bit_AVX2 0x00000020 // (1 << 5)
+#endif
+
   if (__get_cpuid_max (0, NULL) < 7)
     return adler32_default;
   __cpuid_count (7, 0, eax, ebx, ecx, edx);
   has_avx2 = ((ebx & bit_AVX2) != 0);
-#endif /* defined(bit_AVX2) */
+
+#undef bit_AVX2
 
   /* Pick AVX2 version */
   if (has_avx2)
