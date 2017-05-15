@@ -6,14 +6,9 @@
 /* @(#) $Id$ */
 
 #include "zutil.h"
-#include <xmmintrin.h>
-#include <tmmintrin.h>
-
 #include <immintrin.h>
 
-#ifdef __x86_64__
 #include "cpuid.h"
-#endif
 
 static uLong adler32_combine_ OF((uLong adler1, uLong adler2, z_off64_t len2));
 
