@@ -351,29 +351,29 @@ uLong ZEXPORT adler32(uLong adler, const Bytef *buf, uInt len)  __attribute__ ((
 void *resolve_adler32(void)
 {
   unsigned int eax, ebx, ecx, edx;
-	signed char has_sse42 = 0;
-	signed char has_avx2 = 0;
+  signed char has_sse42 = 0;
+  signed char has_avx2 = 0;
 
-	/* Collect CPU features */
+  /* Collect CPU features */
   if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx))
     return adler32_default;
-	has_sse42 = ((ecx & bit_SSE4_2) != 0);
+  has_sse42 = ((ecx & bit_SSE4_2) != 0);
 #if defined(bit_AVX2)
-	if (__get_cpuid_max (0, NULL) < 7)
-		return adler32_default;
-	__cpuid_count (7, 0, eax, ebx, ecx, edx);
-	has_avx2 = ((ebx & bit_AVX2) != 0);
+  if (__get_cpuid_max (0, NULL) < 7)
+    return adler32_default;
+  __cpuid_count (7, 0, eax, ebx, ecx, edx);
+  has_avx2 = ((ebx & bit_AVX2) != 0);
 #endif /* defined(bit_AVX2) */
 
-	/* Pick AVX2 version */
-	if (has_avx2)
-		return adler32_avx2;
+  /* Pick AVX2 version */
+  if (has_avx2)
+    return adler32_avx2;
 
   /* Pick SSE4.2 version */
   if (has_sse42)
     return adler32_sse42;
 
-	/* Fallback to default implementation */
+  /* Fallback to default implementation */
   return adler32_default;
 }
 
