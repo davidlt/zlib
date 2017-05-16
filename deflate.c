@@ -139,7 +139,28 @@ static const config configuration_table[10] = {
 /* rank Z_BLOCK between Z_NO_FLUSH and Z_PARTIAL_FLUSH */
 #define RANK(f) (((f) << 1) - ((f) > 4 ? 9 : 0))
 
-#define UPDATE_HASH(s,h,c) (h = (((h)<<s->hash_shift) ^ (c)) & s->hash_mask)
+static uint32_t hash_func_sse42(deflate_state *s, uint32_t h, void* str) __attribute__ ((__target__ ("sse4.2")));
+
+static uint32_t hash_func_sse42(deflate_state *s, uint32_t h, void* str) {
+    return _mm_crc32_u32(0, *(uint32_t*)str) & s->hash_mask;
+}
+
+static uint32_t hash_func_default(deflate_state *s, uint32_t h, void* str) {
+	return ((h << s->hash_shift) ^ (*(uint32_t*)str)) & s->hash_mask;
+}
+
+static uint32_t hash_func(deflate_state *s, uint32_t h, void* str) __attribute__ ((ifunc ("resolve_hash_func")));
+
+void *resolve_hash_func(void)
+{
+  unsigned int eax, ebx, ecx, edx;
+  if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx))
+    return hash_func_default;
+  /* We need SSE4.2 ISA support */
+  if (!(ecx & bit_SSE4_2))
+    return hash_func_default;
+  return hash_func_sse42;
+}
 
 /* ===========================================================================
  * Insert string str in the dictionary and return the previous head
@@ -149,7 +170,7 @@ static const config configuration_table[10] = {
  */
 static Pos insert_string(deflate_state *s, Pos str) {
     Pos match_head;
-    UPDATE_HASH(s, s->ins_h, s->window[str]);
+    s->ins_h = hash_func(s, s->ins_h, &s->window[str]);
     match_head = s->prev[(str) & s->w_mask] = s->head[s->ins_h];
     s->head[s->ins_h] = (Pos)str;
     return match_head;
@@ -158,7 +179,7 @@ static Pos insert_string(deflate_state *s, Pos str) {
 static void bulk_insert_str(deflate_state *s, Pos startpos, uint32_t count) {
     uint32_t idx;
     for (idx = 0; idx < count; idx++) {
-        UPDATE_HASH(s, s->ins_h, s->window[startpos + idx]);
+        s->ins_h = hash_func(s, s->ins_h, &s->window[startpos + idx]);
         s->prev[(startpos + idx) & s->w_mask] = s->head[s->ins_h];
         s->head[s->ins_h] = (Pos)(startpos + idx);
     }
@@ -1369,9 +1390,9 @@ static void fill_window_default(s)
         if (s->lookahead + s->insert >= MIN_MATCH) {
             uInt str = s->strstart - s->insert;
             s->ins_h = s->window[str];
-            UPDATE_HASH(s, s->ins_h, s->window[str + 1]);
+            s->ins_h = hash_func(s, s->ins_h, &s->window[str + 1]);
             while (s->insert) {
-                UPDATE_HASH(s, s->ins_h, s->window[str + MIN_MATCH-1]);
+                s->ins_h = hash_func(s, s->ins_h, &s->window[str + MIN_MATCH-1]);
                 s->prev[str & s->w_mask] = s->head[s->ins_h];
                 s->head[s->ins_h] = (Pos)str;
                 str++;
@@ -1524,7 +1545,7 @@ static void fill_window_sse42(s)
             uint32_t str = s->strstart - s->insert;
             uint32_t ins_h = s->window[str];
             while (s->insert) {
-                UPDATE_HASH(s, ins_h, s->window[str]);
+                ins_h = hash_func(s, ins_h, &s->window[str]);
                 s->prev[str & s->w_mask] = s->head[ins_h];
                 s->head[ins_h] = (Pos)str;
                 str++;
