@@ -139,27 +139,8 @@ static const config configuration_table[10] = {
 /* rank Z_BLOCK between Z_NO_FLUSH and Z_PARTIAL_FLUSH */
 #define RANK(f) (((f) << 1) - ((f) > 4 ? 9 : 0))
 
-static uint32_t hash_func_sse42(deflate_state *s, uint32_t h, void* str) __attribute__ ((__target__ ("sse4.2")));
-
-static uint32_t hash_func_sse42(deflate_state *s, uint32_t h, void* str) {
-    return _mm_crc32_u32(0, *(uint32_t*)str) & s->hash_mask;
-}
-
-static uint32_t hash_func_default(deflate_state *s, uint32_t h, void* str) {
+static uint32_t hash_func(deflate_state *s, uint32_t h, void* str) {
 	return ((h << s->hash_shift) ^ (*(uint32_t*)str)) & s->hash_mask;
-}
-
-static uint32_t hash_func(deflate_state *s, uint32_t h, void* str) __attribute__ ((ifunc ("resolve_hash_func")));
-
-void *resolve_hash_func(void)
-{
-  unsigned int eax, ebx, ecx, edx;
-  if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx))
-    return hash_func_default;
-  /* We need SSE4.2 ISA support */
-  if (!(ecx & bit_SSE4_2))
-    return hash_func_default;
-  return hash_func_sse42;
 }
 
 /* ===========================================================================
